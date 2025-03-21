@@ -25,12 +25,6 @@ variable "mysql_container_name" {
   type        = string
 }
 
-variable "mysql_network_name" {
-  default     = "coder-net"
-  description = "Name of the Docker network from Docker Compose (without project prefix)"
-  type        = string
-}
-
 provider "docker" {
   # Defaulting to null if the variable is an empty string lets us have an optional variable without having to set our own default
   host = var.docker_socket != "" ? var.docker_socket : null
@@ -64,10 +58,6 @@ resource "coder_agent" "main" {
     GIT_AUTHOR_EMAIL    = "${data.coder_workspace_owner.me.email}"
     GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
-    DB_HOST             = var.mysql_container_name
-    DB_PORT             = "3306"
-    DB_USER             = "root"
-    DB_PASSWORD         = var.mysql_root_password
   }
 
   # The following metadata blocks are optional. They are used to display
@@ -177,10 +167,6 @@ resource "docker_container" "workspace" {
   entrypoint = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.main.token}",
-    "DB_HOST=mysql-db",  # Reference the Compose service name
-    "DB_PORT=3306",
-    "DB_USER=root",
-    "DB_PASSWORD=${var.mysql_root_password}",  # Match Compose env
   ]
 
   # Connect to the Compose-created network
@@ -197,8 +183,6 @@ resource "docker_container" "workspace" {
     host_path      = "/mnt/data/projects"
     read_only      = false
   }
-
-  command = ["sh", "-c", "apt-get update && apt-get install -y mysql-client && tail -f /dev/null"]
 
   # Add labels in Docker to keep track of orphan resources.
   labels {
@@ -219,8 +203,3 @@ resource "docker_container" "workspace" {
   }
 }
 
-variable "mysql_root_password" {
-  default     = "mysql_password"
-  description = "MySQL root password from Docker Compose"
-  type        = string
-}
